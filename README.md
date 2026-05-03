@@ -105,6 +105,33 @@ pipeline = Pipeline([
 
 Invalid values (`timeout <= 0`) raise **`ValueError`** with message `timeout must be greater than 0`.
 
+## Retry
+
+Configure automatic re-runs when a handler raises an **`Exception`** (including **`TimeoutError`** from **`asyncio.timeout`**). On success, the stage returns immediately. If every attempt fails, the library raises **`StageExecutionError`** with the **last** exception as **`original_error`**.
+
+- **`retries`** — extra attempts after the first (`retries=0` is the default: no retries). Total tries are **`1 + retries`**.
+- **`retry_delay`** — base seconds to wait after a failed attempt before the next one. If **`0`**, no **`asyncio.sleep`** is used between attempts.
+- **`backoff`** — **`"fixed"`** (same delay after each failure) or **`"exponential"`** (delay multiplies by **`2 ** (failure_number - 1)`** from the base **`retry_delay`**, e.g. `0.5s`, `1.0s`, `2.0s`, …).
+
+**`CancelledError`** and **`KeyboardInterrupt`** are **`BaseException`**, not **`Exception`**, so they are **not** retried and propagate as usual.
+
+```python
+from async_pipeline import Stage
+
+stage = Stage(
+    "api_call",
+    api_call,
+    retries=3,
+    retry_delay=0.5,
+    backoff="exponential",
+    timeout=5.0,
+)
+```
+
+**With timeout:** each attempt is wrapped in **`asyncio.timeout`** when **`timeout`** is set, so a slow await can fail with **`TimeoutError`**, trigger a retry (after the backoff sleep), and eventually surface as **`StageExecutionError`** if all tries time out or fail.
+
+Invalid **`retries`**, **`retry_delay`**, or **`backoff`** values raise **`ValueError`** with a clear message.
+
 ## Batch processing
 
 Run the same pipeline for many inputs in parallel, with a fixed concurrency limit and **stable output order** (aligned with the input sequence):
@@ -134,8 +161,7 @@ uv run mypy src
 
 ## Roadmap
 
-- **Retry** — retry policies per stage or for the whole pipeline
-- **Hooks** — before/after each stage or the full pipeline
+- **Hooks** — before/after each stage or for the full pipeline
 
 ## License
 
