@@ -83,6 +83,24 @@ except StageExecutionError as exc:
 
 A `Pipeline` with no stages raises `ValueError` at construction time.
 
+## Batch processing
+
+Run the same pipeline for many inputs in parallel, with a fixed concurrency limit and **stable output order** (aligned with the input sequence):
+
+```python
+results = await pipeline.map([1, 2, 3], concurrency=5)
+```
+
+Implementation notes:
+
+- Uses **`asyncio.TaskGroup`** to run one async worker per item (not `gather`).
+- Uses **`asyncio.Semaphore`** so at most `concurrency` pipelines run at once; workers still start as tasks, but only `concurrency` of them proceed past the semaphore at a time.
+- Each worker calls **`run()`** for its item and writes into a pre-sized list by **index**, so results stay in input order even when tasks finish out of order.
+
+**Errors (default):** if any item fails, `TaskGroup` surfaces an **`ExceptionGroup`** (and cancels the other workers). `StageExecutionError` from a stage is propagated like in `run()` (wrapped inside the group as needed).
+
+**Errors (`return_exceptions=True`):** failures are stored in the result list in the matching position as the exception object; the `TaskGroup` completes without raising, so you get `list` entries that are either normal outputs or an `Exception` (often `StageExecutionError`).
+
 ## Development commands
 
 ```bash
@@ -97,7 +115,6 @@ uv run mypy src
 - **Retry** — retry policies per stage or for the whole pipeline
 - **Timeout** — cap how long a stage may run
 - **Hooks** — before/after each stage or the full pipeline
-- **Concurrent map** — a stage that processes collections with bounded concurrency
 
 ## License
 
