@@ -1,6 +1,6 @@
 [project]
 name = "async-pipeline"
-version = "0.5.0"
+version = "0.6.0"
 description = "Lightweight composition of async pipelines where each stage receives the previous stage's output."
 readme = "README.md"
 requires-python = ">=3.14"

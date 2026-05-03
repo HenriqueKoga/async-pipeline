@@ -3,8 +3,9 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from inspect import isawaitable
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
+from async_pipeline._invocation import handler_wants_context
 from async_pipeline.errors import StageExecutionError
 
 
@@ -16,7 +17,7 @@ class Stage[T, U]:
     def __init__(
         self,
         name: str,
-        handler: Callable[[T], U] | Callable[[T], Awaitable[U]],
+        handler: Callable[..., U] | Callable[..., Awaitable[U]],
         *,
         timeout: float | None = None,
         retries: int = 0,
@@ -42,9 +43,16 @@ class Stage[T, U]:
         self.retry_delay = retry_delay
         self.backoff = cast(Literal["fixed", "exponential"], backoff)
 
-    async def _execute_attempt(self, value: T) -> U:
+    async def _execute_attempt(
+        self,
+        value: T,
+        context: dict[str, Any],
+    ) -> U:
         """Run the handler once (sync or async, with optional timeout)."""
-        result = self._handler(value)
+        if handler_wants_context(self._handler):
+            result = self._handler(value, context)
+        else:
+            result = self._handler(value)
 
         if isawaitable(result):
             if self.timeout is not None:
@@ -54,11 +62,17 @@ class Stage[T, U]:
 
         return result
 
-    async def run(self, value: T) -> U:
+    async def run(
+        self,
+        value: T,
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> U:
+        ctx: dict[str, Any] = {} if context is None else context
         attempt = 0
         while True:
             try:
-                return await self._execute_attempt(value)
+                return await self._execute_attempt(value, ctx)
             except Exception as exc:
                 attempt += 1
                 if attempt > self.retries:

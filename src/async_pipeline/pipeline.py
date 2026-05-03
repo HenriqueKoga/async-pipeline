@@ -5,6 +5,10 @@ from collections.abc import Callable, Iterable, Sequence
 from inspect import isawaitable
 from typing import Any, Literal, cast, overload
 
+from async_pipeline._invocation import (
+    after_hook_wants_context,
+    before_hook_wants_context,
+)
 from async_pipeline.stage import Stage
 from async_pipeline.types import AfterStageHook, BeforeStageHook
 
@@ -28,39 +32,65 @@ class Pipeline[T, U]:
         self._before_stage = before_stage
         self._after_stage = after_stage
 
-    async def _call_hook(self, hook: Callable[..., Any], *args: Any) -> None:
+    async def _call_hook(
+        self,
+        hook: Callable[..., Any],
+        base_args: tuple[Any, ...],
+        context: dict[str, Any],
+    ) -> None:
         try:
-            result = hook(*args)
+            if len(base_args) == 2 and before_hook_wants_context(hook):
+                result = hook(base_args[0], base_args[1], context)
+            elif len(base_args) == 4 and after_hook_wants_context(hook):
+                result = hook(*base_args, context)
+            else:
+                result = hook(*base_args)
             if isawaitable(result):
                 await result
         except Exception:
             return
 
-    async def run(self, initial_value: T) -> U:
+    async def run(
+        self,
+        initial_value: T,
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> U:
+        ctx: dict[str, Any] = {} if context is None else context
         current_value: Any = initial_value
         for stage in self._stages:
             stage_input = current_value
             if self._before_stage is not None:
-                await self._call_hook(self._before_stage, stage.name, stage_input)
+                await self._call_hook(
+                    self._before_stage,
+                    (stage.name, stage_input),
+                    ctx,
+                )
             try:
-                stage_output = await stage.run(stage_input)
+                stage_output = await stage.run(stage_input, context=ctx)
             except Exception as exc:
                 if self._after_stage is not None:
                     await self._call_hook(
                         self._after_stage,
-                        stage.name,
-                        stage_input,
-                        None,
-                        exc,
+                        (
+                            stage.name,
+                            stage_input,
+                            None,
+                            exc,
+                        ),
+                        ctx,
                     )
                 raise
             if self._after_stage is not None:
                 await self._call_hook(
                     self._after_stage,
-                    stage.name,
-                    stage_input,
-                    stage_output,
-                    None,
+                    (
+                        stage.name,
+                        stage_input,
+                        stage_output,
+                        None,
+                    ),
+                    ctx,
                 )
             current_value = stage_output
         return cast(U, current_value)
@@ -71,6 +101,7 @@ class Pipeline[T, U]:
         items: Iterable[T],
         concurrency: int = 5,
         *,
+        context: dict[str, Any] | None = None,
         return_exceptions: Literal[False] = False,
     ) -> list[U]: ...
 
@@ -80,6 +111,7 @@ class Pipeline[T, U]:
         items: Iterable[T],
         concurrency: int = 5,
         *,
+        context: dict[str, Any] | None = None,
         return_exceptions: Literal[True],
     ) -> list[U | Exception]: ...
 
@@ -88,6 +120,7 @@ class Pipeline[T, U]:
         items: Iterable[T],
         concurrency: int = 5,
         *,
+        context: dict[str, Any] | None = None,
         return_exceptions: bool = False,
     ) -> list[U] | list[U | Exception]:
         """Run the pipeline per item with bounded concurrency; order matches inputs."""
@@ -100,11 +133,13 @@ class Pipeline[T, U]:
             return []
         results: list[U | Exception | None] = [None] * n
         semaphore = asyncio.Semaphore(concurrency)
+        template: dict[str, Any] = {} if context is None else context
 
         async def worker(index: int, item: T) -> None:
             async with semaphore:
+                ctx = dict(template)
                 try:
-                    result = await self.run(item)
+                    result = await self.run(item, context=ctx)
                     results[index] = result
                 except Exception as exc:
                     if return_exceptions:

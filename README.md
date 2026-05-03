@@ -105,6 +105,32 @@ pipeline = Pipeline([
 
 Invalid values (`timeout <= 0`) raise **`ValueError`** with message `timeout must be greater than 0`.
 
+## Execution context
+
+Pass a mutable **`dict`** (typically `dict[str, Any]`) to **`Pipeline.run(..., context=...)`** to share data across **stages** and **hooks** for that run. If **`context=None`**, the pipeline creates a **new empty `dict`** for that execution and reuses it for every stage in order.
+
+Handlers can stay **`async def handler(value)`** or opt into **`async def handler(value, context)`** — the library uses **`inspect.signature`**: if the callable has **at least two** positional parameters, the context dict is passed as the second argument.
+
+Hooks support the same pattern:
+
+- **`before_stage(name, input)`** or **`before_stage(name, input, context)`** (three or more parameters → context is passed).
+- **`after_stage(name, input, output, error)`** or **`after_stage(..., context)`** (five or more parameters → context is passed).
+
+**`Pipeline.map`** accepts **`context=`** and applies a **shallow copy** (`dict(template)`) **per item**, so concurrent workers never share the same dict instance.
+
+```python
+from async_pipeline import Pipeline, Stage
+
+
+async def handler(value: int, context: dict[str, object]) -> int:
+    context["user_id"] = 123
+    return value
+
+
+pipeline = Pipeline([Stage("step", handler)])
+await pipeline.run(1, context={})
+```
+
 ## Retry
 
 Configure automatic re-runs when a handler raises an **`Exception`** (including **`TimeoutError`** from **`asyncio.timeout`**). On success, the stage returns immediately. If every attempt fails, the library raises **`StageExecutionError`** with the **last** exception as **`original_error`**.
@@ -136,8 +162,8 @@ Invalid **`retries`**, **`retry_delay`**, or **`backoff`** values raise **`Value
 
 `Pipeline` accepts optional **`before_stage`** and **`after_stage`** callbacks. They run around **each** `Stage` inside **`run()`** (and therefore around **`map()`**, which calls **`run()`** per item).
 
-- **`before_stage(stage_name, input_value)`** — runs immediately before **`stage.run(input_value)`**.
-- **`after_stage(stage_name, input_value, output_value, error)`** — runs after the stage finishes. On success, **`output_value`** is the stage result and **`error`** is **`None`**. On failure, **`output_value`** is **`None`** and **`error`** is the exception raised by **`stage.run`** (typically **`StageExecutionError`**).
+- **`before_stage(stage_name, input_value)`** — runs immediately before **`stage.run(...)`** (optionally **`before_stage(..., context)`** — see **Execution context**).
+- **`after_stage(stage_name, input_value, output_value, error)`** — runs after the stage finishes (optionally **`after_stage(..., context)`**). On success, **`output_value`** is the stage result and **`error`** is **`None`**. On failure, **`output_value`** is **`None`** and **`error`** is the exception raised by **`stage.run`** (typically **`StageExecutionError`**).
 
 Hooks may be **sync** or **async** (if they return an awaitable, it is awaited). **Failures inside hooks are ignored** (they do not replace or mask stage errors, and they do not stop the pipeline). There is no built-in logging so the library stays opinion-free.
 
@@ -207,6 +233,20 @@ uv run pytest
 uv run ruff check .
 uv run mypy src
 ```
+
+## Changelog
+
+### 0.6.0
+
+- Added execution context support (`**context**` on **`Pipeline.run`** and **`Pipeline.map`**)
+- Context is available to stages (optional second argument) and hooks (optional last argument)
+- Context is isolated per item in **`Pipeline.map`** (shallow copy of the template dict)
+- Backward compatible with existing handlers and hook signatures
+
+### 0.5.0
+
+- Added **`before_stage`** and **`after_stage`** hooks to **`Pipeline`**
+- Sync and async hooks; hook failures do not interrupt the pipeline
 
 ## License
 
