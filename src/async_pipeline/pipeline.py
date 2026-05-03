@@ -1,11 +1,15 @@
 """Pipeline of sequential stages."""
 
 import asyncio
-from collections.abc import Callable, Iterable, Sequence
-from inspect import isawaitable
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from typing import Any, Literal, cast, overload
 
-from async_pipeline._invocation import accepts_arity
+from async_pipeline._invocation import (
+    AfterHookRunner,
+    BeforeHookRunner,
+    normalize_after_hook,
+    normalize_before_hook,
+)
 from async_pipeline.stage import Stage
 from async_pipeline.types import AfterStageHook, BeforeStageHook
 
@@ -13,13 +17,7 @@ from async_pipeline.types import AfterStageHook, BeforeStageHook
 class Pipeline[T, U]:
     """Runs stages in order, passing each output as the next input."""
 
-    __slots__ = (
-        "_after_stage",
-        "_after_wants_context",
-        "_before_stage",
-        "_before_wants_context",
-        "_stages",
-    )
+    __slots__ = ("_after_hook", "_before_hook", "_stages")
 
     def __init__(
         self,
@@ -32,24 +30,22 @@ class Pipeline[T, U]:
             msg = "Pipeline requires at least one stage"
             raise ValueError(msg)
         self._stages = tuple(stages)
-        self._before_stage = before_stage
-        self._after_stage = after_stage
-        self._before_wants_context = (
-            before_stage is not None and accepts_arity(before_stage, 3)
+        self._before_hook: BeforeHookRunner | None = (
+            normalize_before_hook(before_stage) if before_stage is not None else None
         )
-        self._after_wants_context = (
-            after_stage is not None and accepts_arity(after_stage, 5)
+        self._after_hook: AfterHookRunner | None = (
+            normalize_after_hook(after_stage) if after_stage is not None else None
         )
 
     @staticmethod
-    async def _call_hook(
-        hook: Callable[..., Any],
-        args: tuple[Any, ...],
+    async def _try_hook(
+        hook: Callable[..., Awaitable[None]] | None,
+        *args: Any,
     ) -> None:
+        if hook is None:
+            return
         try:
-            result = hook(*args)
-            if isawaitable(result):
-                await result
+            await hook(*args)
         except Exception:
             return
 
@@ -63,31 +59,32 @@ class Pipeline[T, U]:
         current_value: Any = initial_value
         for stage in self._stages:
             stage_input = current_value
-            if self._before_stage is not None:
-                args: tuple[Any, ...] = (
-                    (stage.name, stage_input, ctx)
-                    if self._before_wants_context
-                    else (stage.name, stage_input)
-                )
-                await self._call_hook(self._before_stage, args)
+            await self._try_hook(
+                self._before_hook,
+                stage.name,
+                stage_input,
+                ctx,
+            )
             try:
                 stage_output = await stage.run(stage_input, context=ctx)
             except Exception as exc:
-                if self._after_stage is not None:
-                    after_args: tuple[Any, ...] = (
-                        (stage.name, stage_input, None, exc, ctx)
-                        if self._after_wants_context
-                        else (stage.name, stage_input, None, exc)
-                    )
-                    await self._call_hook(self._after_stage, after_args)
-                raise
-            if self._after_stage is not None:
-                after_args = (
-                    (stage.name, stage_input, stage_output, None, ctx)
-                    if self._after_wants_context
-                    else (stage.name, stage_input, stage_output, None)
+                await self._try_hook(
+                    self._after_hook,
+                    stage.name,
+                    stage_input,
+                    None,
+                    exc,
+                    ctx,
                 )
-                await self._call_hook(self._after_stage, after_args)
+                raise
+            await self._try_hook(
+                self._after_hook,
+                stage.name,
+                stage_input,
+                stage_output,
+                None,
+                ctx,
+            )
             current_value = stage_output
         return cast(U, current_value)
 
