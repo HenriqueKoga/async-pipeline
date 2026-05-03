@@ -83,6 +83,28 @@ except StageExecutionError as exc:
 
 A `Pipeline` with no stages raises `ValueError` at construction time.
 
+## Stage timeout
+
+Per-stage timeouts apply only when the handler returns an **awaitable** (async handler). Synchronous handlers are unchanged; the `timeout` argument is ignored for them.
+
+Timeouts use **`asyncio.timeout`** (not `wait_for`). If the awaitable runs longer than the limit, the stage raises **`StageExecutionError`** with **`original_error`** set to **`TimeoutError`**.
+
+```python
+import asyncio
+
+from async_pipeline import Pipeline, Stage
+
+async def fetch_data(value: int) -> int:
+    await asyncio.sleep(2)
+    return value
+
+pipeline = Pipeline([
+    Stage("fetch_data", fetch_data, timeout=1.0),
+])
+```
+
+Invalid values (`timeout <= 0`) raise **`ValueError`** with message `timeout must be greater than 0`.
+
 ## Batch processing
 
 Run the same pipeline for many inputs in parallel, with a fixed concurrency limit and **stable output order** (aligned with the input sequence):
@@ -113,7 +135,6 @@ uv run mypy src
 ## Roadmap
 
 - **Retry** — retry policies per stage or for the whole pipeline
-- **Timeout** — cap how long a stage may run
 - **Hooks** — before/after each stage or the full pipeline
 
 ## License
