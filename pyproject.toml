@@ -5,7 +5,7 @@ description = "Lightweight composition of async pipelines where each stage recei
 readme = "README.md"
 requires-python = ">=3.14"
 license = { file = "LICENSE" }
-authors = [{ name = "async-pipeline contributors" }]
+authors = [{ name = "Henrique Tukahara Koga" }]
 keywords = ["async", "pipeline", "composition"]
 classifiers = [
     "Development Status :: 4 - Beta",
