@@ -1,5 +1,9 @@
 # async-pipeline
 
+[![PyPI version](https://img.shields.io/pypi/v/async-pipeline)](https://pypi.org/project/async-pipeline/)
+[![Python versions](https://img.shields.io/pypi/pyversions/async-pipeline)](https://pypi.org/project/async-pipeline/)
+[![CI](https://github.com/HenriqueKoga/async-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/HenriqueKoga/async-pipeline/actions/workflows/ci.yml)
+
 A small library for composing **async pipelines**: each `Stage` receives the previous stage’s output, executed in order.
 
 ## Requirements
