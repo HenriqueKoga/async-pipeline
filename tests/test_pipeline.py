@@ -45,3 +45,12 @@ async def test_pipeline_raises_stage_execution_error() -> None:
 def test_pipeline_empty_raises_value_error() -> None:
     with pytest.raises(ValueError, match="at least one stage"):
         Pipeline([])
+
+
+async def test_pipeline_run_with_stage_timeout() -> None:
+    async def add_one(value: int) -> int:
+        return value + 1
+
+    pipeline = Pipeline([Stage("add_one", add_one, timeout=1.0)])
+    result = await pipeline.run(1)
+    assert result == 2

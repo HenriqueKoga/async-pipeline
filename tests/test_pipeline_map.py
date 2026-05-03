@@ -98,3 +98,37 @@ async def test_pipeline_map_concurrency_below_one() -> None:
     pipeline: Pipeline[int, int] = Pipeline([Stage("add_one", add_one)])
     with pytest.raises(ValueError, match="at least 1"):
         await pipeline.map([1], concurrency=0)
+
+
+async def test_pipeline_map_propagates_stage_timeout() -> None:
+    async def very_slow(_: int) -> int:
+        await asyncio.sleep(1.0)
+        return 1
+
+    pipeline: Pipeline[int, int] = Pipeline(
+        [Stage("very_slow", very_slow, timeout=0.05)]
+    )
+    with pytest.raises(ExceptionGroup) as exc_info:
+        await pipeline.map([1, 2], concurrency=2)
+    assert any(
+        isinstance(e, StageExecutionError)
+        and isinstance(e.original_error, TimeoutError)
+        for e in exc_info.value.exceptions
+    )
+
+
+async def test_pipeline_map_return_exceptions_timeout() -> None:
+    async def maybe_slow(x: int) -> int:
+        if x == 2:
+            await asyncio.sleep(0.2)
+        await asyncio.sleep(0.01)
+        return x
+
+    pipeline: Pipeline[int, int] = Pipeline(
+        [Stage("maybe_slow", maybe_slow, timeout=0.05)]
+    )
+    results = await pipeline.map([1, 2, 3], concurrency=2, return_exceptions=True)
+    assert results[0] == 1
+    assert isinstance(results[1], StageExecutionError)
+    assert isinstance(results[1].original_error, TimeoutError)
+    assert results[2] == 3
