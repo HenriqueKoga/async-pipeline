@@ -26,7 +26,7 @@ build-backend = "hatchling.build"
 packages = ["src/async_pipeline"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/async_pipeline", "tests", "README.md", "LICENSE"]
+include = ["src/async_pipeline", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
 
 [tool.uv]
 default-groups = ["dev"]

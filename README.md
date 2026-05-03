@@ -236,17 +236,7 @@ uv run mypy src
 
 ## Changelog
 
-### 0.6.0
-
-- Added execution context support (`**context**` on **`Pipeline.run`** and **`Pipeline.map`**)
-- Context is available to stages (optional second argument) and hooks (optional last argument)
-- Context is isolated per item in **`Pipeline.map`** (shallow copy of the template dict)
-- Backward compatible with existing handlers and hook signatures
-
-### 0.5.0
-
-- Added **`before_stage`** and **`after_stage`** hooks to **`Pipeline`**
-- Sync and async hooks; hook failures do not interrupt the pipeline
+Release history: **[CHANGELOG.md](CHANGELOG.md)**.
 
 ## License
 
