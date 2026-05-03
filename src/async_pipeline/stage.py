@@ -5,14 +5,22 @@ from collections.abc import Awaitable, Callable
 from inspect import isawaitable
 from typing import Any, Literal, cast
 
-from async_pipeline._invocation import handler_wants_context
+from async_pipeline._invocation import accepts_arity
 from async_pipeline.errors import StageExecutionError
 
 
 class Stage[T, U]:
     """A named step that transforms input into output (sync or async)."""
 
-    __slots__ = ("_handler", "backoff", "name", "retries", "retry_delay", "timeout")
+    __slots__ = (
+        "_handler",
+        "_wants_context",
+        "backoff",
+        "name",
+        "retries",
+        "retry_delay",
+        "timeout",
+    )
 
     def __init__(
         self,
@@ -38,6 +46,7 @@ class Stage[T, U]:
             raise ValueError(msg)
         self.name = name
         self._handler = handler
+        self._wants_context = accepts_arity(handler, 2)
         self.timeout = timeout
         self.retries = retries
         self.retry_delay = retry_delay
@@ -49,10 +58,11 @@ class Stage[T, U]:
         context: dict[str, Any],
     ) -> U:
         """Run the handler once (sync or async, with optional timeout)."""
-        if handler_wants_context(self._handler):
-            result = self._handler(value, context)
-        else:
-            result = self._handler(value)
+        result = (
+            self._handler(value, context)
+            if self._wants_context
+            else self._handler(value)
+        )
 
         if isawaitable(result):
             if self.timeout is not None:
