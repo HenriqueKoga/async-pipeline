@@ -132,6 +132,55 @@ stage = Stage(
 
 Invalid **`retries`**, **`retry_delay`**, or **`backoff`** values raise **`ValueError`** with a clear message.
 
+## Hooks
+
+`Pipeline` accepts optional **`before_stage`** and **`after_stage`** callbacks. They run around **each** `Stage` inside **`run()`** (and therefore around **`map()`**, which calls **`run()`** per item).
+
+- **`before_stage(stage_name, input_value)`** — runs immediately before **`stage.run(input_value)`**.
+- **`after_stage(stage_name, input_value, output_value, error)`** — runs after the stage finishes. On success, **`output_value`** is the stage result and **`error`** is **`None`**. On failure, **`output_value`** is **`None`** and **`error`** is the exception raised by **`stage.run`** (typically **`StageExecutionError`**).
+
+Hooks may be **sync** or **async** (if they return an awaitable, it is awaited). **Failures inside hooks are ignored** (they do not replace or mask stage errors, and they do not stop the pipeline). There is no built-in logging so the library stays opinion-free.
+
+Typical uses: logging, metrics, tracing, auditing, and debugging without coupling that logic to stage handlers.
+
+```python
+from async_pipeline import Pipeline, Stage
+
+
+def before_stage(stage_name: str, input_value: object) -> None:
+    print(f"Starting {stage_name}")
+
+
+def after_stage(
+    stage_name: str,
+    input_value: object,
+    output_value: object | None,
+    error: Exception | None,
+) -> None:
+    if error:
+        print(f"{stage_name} failed: {error}")
+    else:
+        print(f"{stage_name} finished: {output_value}")
+
+
+async def add_one(value: int) -> int:
+    return value + 1
+
+
+pipeline = Pipeline(
+    [Stage("add_one", add_one)],
+    before_stage=before_stage,
+    after_stage=after_stage,
+)
+```
+
+Async example:
+
+```python
+async def before_stage(stage_name: str, input_value: object) -> None:
+    await audit_log(stage_name, input_value)
+```
+
 ## Batch processing
 
 Run the same pipeline for many inputs in parallel, with a fixed concurrency limit and **stable output order** (aligned with the input sequence):
@@ -158,10 +207,6 @@ uv run pytest
 uv run ruff check .
 uv run mypy src
 ```
-
-## Roadmap
-
-- **Hooks** — before/after each stage or for the full pipeline
 
 ## License
 
