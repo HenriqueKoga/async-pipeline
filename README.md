@@ -1,20 +1,20 @@
 # async-pipeline
 
-Biblioteca leve para compor **pipelines assíncronos**: cada `Stage` recebe a saída do estágio anterior, em ordem sequencial.
+A small library for composing **async pipelines**: each `Stage` receives the previous stage’s output, executed in order.
 
-## Requisitos
+## Requirements
 
-- Python 3.14 ou superior
+- Python 3.14 or newer
 
-## Instalação com uv
+## Install with uv
 
-No seu projeto:
+In your project:
 
 ```bash
 uv add async-pipeline
 ```
 
-Para desenvolver esta biblioteca:
+To work on this library:
 
 ```bash
 git clone <repo-url>
@@ -22,7 +22,7 @@ cd async-pipeline
 uv sync
 ```
 
-## Uso básico
+## Basic usage
 
 ```python
 from async_pipeline import Pipeline, Stage
@@ -42,7 +42,7 @@ result = await pipeline.run(10)
 assert result == 22
 ```
 
-Handlers **síncronos** também são aceitos (o método `run` do stage continua sendo `async`):
+**Synchronous** handlers are supported as well (the stage’s `run` method remains `async`):
 
 ```python
 def add_one(value: int) -> int:
@@ -56,9 +56,9 @@ result = await pipeline.run(1)
 assert result == 2
 ```
 
-## Erros
+## Errors
 
-Falhas dentro do handler são expostas como `StageExecutionError`, com o nome do stage e a exceção original:
+Failures inside a handler are surfaced as `StageExecutionError`, including the stage name and the original exception:
 
 ```python
 from async_pipeline import Pipeline, Stage, StageExecutionError
@@ -77,9 +77,9 @@ except StageExecutionError as exc:
     assert isinstance(exc.original_error, RuntimeError)
 ```
 
-Um `Pipeline` sem stages levanta `ValueError` na construção.
+A `Pipeline` with no stages raises `ValueError` at construction time.
 
-## Comandos (desenvolvimento)
+## Development commands
 
 ```bash
 uv sync
@@ -90,11 +90,11 @@ uv run mypy src
 
 ## Roadmap
 
-- **Retry** — políticas de retentativa por stage ou pipeline
-- **Timeout** — limitar tempo de execução por stage
-- **Hooks** — antes/depois de cada stage ou do pipeline inteiro
-- **Map com concorrência** — estágio que processa coleções com paralelismo controlado
+- **Retry** — retry policies per stage or for the whole pipeline
+- **Timeout** — cap how long a stage may run
+- **Hooks** — before/after each stage or the full pipeline
+- **Concurrent map** — a stage that processes collections with bounded concurrency
 
-## Licença
+## License
 
-Veja o arquivo `LICENSE`.
+See the `LICENSE` file.
