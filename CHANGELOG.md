@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0]
+
+### Added
+
+- Middleware support on `Pipeline` (`middlewares=[...]`)
+- Per-stage middleware chain (`next`, `stage_name`, `value`, `context`); order is list order outside-in
+- Middleware integrates with execution context, hooks, and existing `Stage` retry/timeout behavior
+
 ## [0.6.0]
 
 ### Added
