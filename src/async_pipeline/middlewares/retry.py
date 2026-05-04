@@ -16,7 +16,15 @@ def _retry_delay(base: float, mode: _Backoff, attempt: int) -> float:
 
 
 class RetryMiddleware:
-    """Retry ``await next(value)`` on failure; total attempts = ``1 + retries``."""
+    """Retry ``await next(value)`` on ``Exception`` (middleware-level).
+
+    Total attempts are ``1 + retries``. Does not retry
+    :class:`KeyboardInterrupt` or :class:`asyncio.CancelledError`. Independent
+    of :class:`~async_pipeline.Stage` ``retries`` (both may apply).
+
+    Raises:
+        ValueError: For invalid configuration.
+    """
 
     def __init__(
         self,
@@ -24,6 +32,11 @@ class RetryMiddleware:
         delay: float = 0.0,
         backoff: _Backoff = "fixed",
     ) -> None:
+        """Args:
+            retries: Extra attempts after the first failure.
+            delay: Base seconds between attempts; ``0`` skips ``sleep``.
+            backoff: ``\"fixed\"`` or ``\"exponential\"`` backoff curve.
+        """
         if retries < 0:
             raise ValueError("retries must be greater than or equal to 0")
         if delay < 0:

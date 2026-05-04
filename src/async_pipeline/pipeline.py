@@ -16,7 +16,16 @@ from async_pipeline.types import AfterStageHook, BeforeStageHook, Middleware
 
 
 class Pipeline[T, U]:
-    """Runs stages in order, passing each output as the next input."""
+    """Sequential composition of :class:`Stage` callables.
+
+    Each stage receives the previous stage's return value. Optional
+    ``before_stage`` / ``after_stage`` hooks observe each step; ``middlewares``
+    wrap ``Stage.run`` (outer list item runs first). Use :meth:`run` for one
+    value and :meth:`map` for many inputs with bounded concurrency.
+
+    Raises:
+        ValueError: If ``stages`` is empty.
+    """
 
     __slots__ = ("_after_hook", "_before_hook", "_middlewares", "_stages")
 
@@ -28,6 +37,14 @@ class Pipeline[T, U]:
         after_stage: AfterStageHook | None = None,
         middlewares: Sequence[Middleware] | None = None,
     ) -> None:
+        """Configure stages and optional hooks/middlewares.
+
+        Args:
+            stages: At least one stage, executed in order.
+            before_stage: Called before each ``Stage.run`` (hook errors ignored).
+            after_stage: Called after each ``Stage.run`` (hook errors ignored).
+            middlewares: Outermost middleware is the first list element.
+        """
         if not stages:
             raise ValueError("Pipeline requires at least one stage")
         self._stages = tuple(stages)
@@ -47,7 +64,20 @@ class Pipeline[T, U]:
         *,
         context: dict[str, Any] | None = None,
     ) -> U:
-        """Run each stage in order. The same context dict is shared across stages."""
+        """Execute all stages for a single input.
+
+        Args:
+            initial_value: Input to the first stage.
+            context: Shared mutable mapping for the whole run; if ``None``, an
+                empty dict is created and reused for every stage and hook.
+
+        Returns:
+            The last stage's output.
+
+        Raises:
+            StageExecutionError: When a stage handler fails after its own
+                retries/timeout policy (see :class:`Stage`).
+        """
         ctx: dict[str, Any] = {} if context is None else context
         value: Any = initial_value
         for stage in self._stages:
@@ -89,7 +119,23 @@ class Pipeline[T, U]:
         context: dict[str, Any] | None = None,
         return_exceptions: bool = False,
     ) -> list[U] | list[U | Exception]:
-        """Run pipeline per item with bounded concurrency; preserves input order."""
+        """Run the same pipeline for each input with a concurrency cap.
+
+        Results are aligned with ``items`` order. Each item gets a shallow copy
+        of ``context`` (when provided) so workers do not share the same dict.
+
+        Args:
+            items: Iterable of inputs for the first stage.
+            concurrency: Maximum concurrent ``run`` calls (minimum ``1``).
+            context: Optional template dict copied per item.
+            return_exceptions: If ``True``, store exceptions in the result list
+                instead of cancelling siblings via ``TaskGroup``.
+
+        Raises:
+            ValueError: If ``concurrency`` is below ``1``.
+            ExceptionGroup: When ``return_exceptions`` is ``False`` and any item
+                fails (often wrapping :class:`StageExecutionError`).
+        """
 
         async def execute(item: T, item_ctx: dict[str, Any]) -> U:
             return await self.run(item, context=item_ctx)

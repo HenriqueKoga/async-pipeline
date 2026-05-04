@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0]
+
+### Changed
+
+- Stabilized public API for a 1.x line
+- Improved package metadata (classifiers, URLs, description, keywords)
+- Reorganized README for clarity and added typing / license badges
+- Expanded docstrings on core types and built-in middlewares
+
+### Added
+
+- Executable examples under `examples/` (see `examples/README.md`)
+- `CONTRIBUTING.md` with local workflow and release notes
+- `py.typed` marker for PEP 561
+- CI: `uv build`, `twine check`, and optional OpenTelemetry extra in the test matrix
+- Automated release workflow on `master` (PyPI Trusted Publishing + version tag when absent)
+
+### Removed
+
+- Tag-only `publish.yml` workflow (superseded by `release.yml`)
+
 ## [0.9.0]
 
 ### Added

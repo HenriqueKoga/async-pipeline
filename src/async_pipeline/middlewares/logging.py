@@ -6,7 +6,11 @@ from typing import Any
 
 
 class LoggingMiddleware:
-    """Log stage start, success, and failure using the standard library."""
+    """Log each stage start, success, and failure via :mod:`logging`.
+
+    Exceptions from ``next`` are logged and re-raised unchanged. Works with
+    :class:`~async_pipeline.Pipeline` hooks, context, and other middlewares.
+    """
 
     def __init__(
         self,
@@ -15,6 +19,13 @@ class LoggingMiddleware:
         *,
         include_value: bool = False,
     ) -> None:
+        """Configure logger, level, and whether payloads appear in messages.
+
+        Args:
+            logger: Target logger; defaults to ``logging.getLogger("async_pipeline")``.
+            level: Log level for start/finish lines (errors use ``exception``).
+            include_value: When ``True``, include repr of input/output in logs.
+        """
         self._logger = logger or logging.getLogger("async_pipeline")
         self._level = level
         self._include_value = include_value
