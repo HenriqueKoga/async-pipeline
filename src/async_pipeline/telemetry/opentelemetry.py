@@ -4,8 +4,9 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 try:
-    from opentelemetry import trace
     from opentelemetry.trace import Status, StatusCode
+
+    from opentelemetry import trace
 except ImportError as exc:
     raise ImportError(
         "OpenTelemetry support requires installing async-pipeline[otel]"
@@ -24,13 +25,25 @@ def _merge_trace_attributes(span: Any, context: dict[str, Any]) -> None:
 
 
 class OpenTelemetryMiddleware:
-    """Create one span per stage around ``await next(value)``."""
+    """Emit one OpenTelemetry span per stage around ``await next(value)``.
+
+    Span name is ``"{span_prefix}.{stage_name}"`` (interpolated at runtime).
+    Adds semantic attributes
+    and merges simple values from ``context[\"trace_attributes\"]`` when
+    present. Records failures on the span then re-raises the same exception.
+
+    Requires the ``async-pipeline[otel]`` extra (see package metadata).
+    """
 
     def __init__(
         self,
         tracer_name: str = "async_pipeline",
         span_prefix: str = "pipeline.stage",
     ) -> None:
+        """Args:
+            tracer_name: Name passed to :func:`trace.get_tracer`.
+            span_prefix: Prefix joined with ``stage_name`` for the span name.
+        """
         self._tracer = trace.get_tracer(tracer_name)
         self._span_prefix = span_prefix
 

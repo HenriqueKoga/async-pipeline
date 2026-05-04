@@ -20,10 +20,12 @@ def _retry_delay(base: float, mode: BackoffMode, attempt: int) -> float:
 
 
 class Stage[T, U]:
-    """A named transformation step. Wraps a sync or async handler.
+    """A named transformation step wrapping a sync or async callable.
 
-    Failures are surfaced as :class:`StageExecutionError` once retries (if
-    any) are exhausted. ``timeout`` only applies to awaitable handlers.
+    Handlers may be ``(value)`` or ``(value, context)`` when the signature has
+    at least two positional parameters. Failures become
+    :class:`~async_pipeline.StageExecutionError` after all retries are used.
+    ``timeout`` applies only when the handler returns an awaitable.
     """
 
     __slots__ = (
@@ -46,6 +48,21 @@ class Stage[T, U]:
         retry_delay: float = 0.0,
         backoff: BackoffMode | str = "fixed",
     ) -> None:
+        """Configure the stage.
+
+        Args:
+            name: Stable identifier used in errors, hooks, and middleware.
+            handler: Callable invoked by :meth:`run`.
+            timeout: Seconds for ``asyncio.timeout`` around awaitable handlers;
+                must be ``> 0`` when set.
+            retries: Extra attempts after the first failure (total ``1 + retries``).
+            retry_delay: Base seconds between retries; ``0`` skips ``sleep``.
+            backoff: ``\"fixed\"`` or ``\"exponential\"`` delay growth between tries.
+
+        Raises:
+            ValueError: For invalid ``timeout``, ``retries``, ``retry_delay``, or
+                ``backoff``.
+        """
         if timeout is not None and timeout <= 0:
             raise ValueError("timeout must be greater than 0")
         if retries < 0:
@@ -69,7 +86,18 @@ class Stage[T, U]:
         *,
         context: dict[str, Any] | None = None,
     ) -> U:
-        """Run handler with retry + timeout; wraps failures in StageExecutionError."""
+        """Invoke the handler with retry/timeout policy.
+
+        Args:
+            value: Input to the handler.
+            context: Execution context; if ``None``, uses an empty dict.
+
+        Returns:
+            Handler result (possibly awaited).
+
+        Raises:
+            StageExecutionError: When every attempt raises ``Exception``.
+        """
         ctx: dict[str, Any] = {} if context is None else context
         last_error: Exception | None = None
         for attempt in range(self.retries + 1):

@@ -1,22 +1,37 @@
 [project]
 name = "async-pipeline"
-version = "0.9.0"
-description = "Lightweight composition of async pipelines where each stage receives the previous stage's output."
+version = "1.0.0"
+description = "Composable async pipelines: sequential stages, hooks, middleware, bounded map, retries, and timeouts."
 readme = "README.md"
 requires-python = ">=3.14"
 license = { file = "LICENSE" }
 authors = [{ name = "Henrique Tukahara Koga" }]
-keywords = ["async", "pipeline", "composition"]
+keywords = [
+    "async",
+    "asyncio",
+    "composition",
+    "middleware",
+    "pipeline",
+    "typing",
+]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
 
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/HenriqueKoga/async-pipeline"
+Repository = "https://github.com/HenriqueKoga/async-pipeline"
+Issues = "https://github.com/HenriqueKoga/async-pipeline/issues"
+Changelog = "https://github.com/HenriqueKoga/async-pipeline/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 otel = [
@@ -31,7 +46,15 @@ build-backend = "hatchling.build"
 packages = ["src/async_pipeline"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/async_pipeline", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
+include = [
+    "src/async_pipeline",
+    "examples",
+    "tests",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+]
 
 [tool.uv]
 default-groups = ["dev"]
@@ -43,11 +66,12 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
     "ruff>=0.9.0",
+    "twine>=6.0.0",
 ]
 
 [tool.ruff]
 target-version = "py314"
-src = ["src", "tests"]
+src = ["src", "tests", "examples"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "W"]

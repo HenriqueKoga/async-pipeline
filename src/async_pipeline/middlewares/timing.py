@@ -6,9 +6,17 @@ from typing import Any
 
 
 class TimingMiddleware:
-    """Append each stage duration (seconds) to ``context[context_key][stage_name]``."""
+    """Record wall time for each ``await next(value)`` in the execution context.
+
+    Durations (seconds from :func:`time.perf_counter`) are appended to a list
+    per stage name so repeated names do not overwrite. Timing runs in a
+    ``finally`` block so failures still record duration.
+    """
 
     def __init__(self, context_key: str = "timings") -> None:
+        """Args:
+            context_key: Dict key under which per-stage lists are stored.
+        """
         self._context_key = context_key
 
     def _bucket_for_stage(
