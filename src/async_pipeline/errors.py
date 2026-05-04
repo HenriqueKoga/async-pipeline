@@ -6,9 +6,9 @@ class PipelineError(Exception):
 
 
 class StageExecutionError(PipelineError):
-    """Raised when a stage handler fails."""
+    """Raised when a stage handler fails (after retries are exhausted)."""
 
     def __init__(self, stage_name: str, original_error: Exception) -> None:
+        super().__init__(f"Stage {stage_name!r} failed: {original_error!r}")
         self.stage_name = stage_name
         self.original_error = original_error
-        super().__init__(f"Stage {stage_name!r} failed: {original_error!r}")
