@@ -1,7 +1,8 @@
 """Pipeline of sequential stages with optional execution context and lifecycle hooks."""
 
 import asyncio
-from collections.abc import Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
+from inspect import isawaitable
 from typing import Any, Literal, cast, overload
 
 from async_pipeline._hooks import (
@@ -11,13 +12,13 @@ from async_pipeline._hooks import (
     normalize_before_hook,
 )
 from async_pipeline.stage import Stage
-from async_pipeline.types import AfterStageHook, BeforeStageHook
+from async_pipeline.types import AfterStageHook, BeforeStageHook, Middleware
 
 
 class Pipeline[T, U]:
     """Runs stages in order, passing each output as the next input."""
 
-    __slots__ = ("_after_hook", "_before_hook", "_stages")
+    __slots__ = ("_after_hook", "_before_hook", "_middlewares", "_stages")
 
     def __init__(
         self,
@@ -25,6 +26,7 @@ class Pipeline[T, U]:
         *,
         before_stage: BeforeStageHook | None = None,
         after_stage: AfterStageHook | None = None,
+        middlewares: Sequence[Middleware] | None = None,
     ) -> None:
         if not stages:
             raise ValueError("Pipeline requires at least one stage")
@@ -34,6 +36,9 @@ class Pipeline[T, U]:
         )
         self._after_hook: AfterHookRunner | None = (
             normalize_after_hook(after_stage) if after_stage is not None else None
+        )
+        self._middlewares: tuple[Middleware, ...] = (
+            tuple(middlewares) if middlewares is not None else ()
         )
 
     async def run(
@@ -55,15 +60,46 @@ class Pipeline[T, U]:
         value: Any,
         ctx: dict[str, Any],
     ) -> Any:
-        """Run one stage with before/after hooks; reraises stage failures."""
+        """Run one stage: before hook → middleware chain → stage → after hook."""
         await self._call_before(stage.name, value, ctx)
+        runner = self._compose_stage_runner(stage, ctx)
         try:
-            output = await stage.run(value, context=ctx)
+            output = await runner(value)
         except Exception as exc:
             await self._call_after(stage.name, value, None, exc, ctx)
             raise
         await self._call_after(stage.name, value, output, None, ctx)
         return output
+
+    def _compose_stage_runner(
+        self,
+        stage: Stage[Any, Any],
+        ctx: dict[str, Any],
+    ) -> Callable[[Any], Awaitable[Any]]:
+        """Build next(value) → stage.run, wrapped by middlewares (outer first)."""
+
+        async def inner(value: Any) -> Any:
+            return await stage.run(value, context=ctx)
+
+        handler: Callable[[Any], Awaitable[Any]] = inner
+        for mw in reversed(self._middlewares):
+            handler = self._wrap_middleware(handler, mw, stage.name, ctx)
+        return handler
+
+    @staticmethod
+    def _wrap_middleware(
+        next_handler: Callable[[Any], Awaitable[Any]],
+        middleware: Middleware,
+        stage_name: str,
+        context: dict[str, Any],
+    ) -> Callable[[Any], Awaitable[Any]]:
+        async def wrapped(value: Any) -> Any:
+            out = middleware(next_handler, stage_name, value, context)
+            if isawaitable(out):
+                return await out
+            return out
+
+        return wrapped
 
     async def _call_before(self, name: str, value: Any, ctx: dict[str, Any]) -> None:
         if self._before_hook is None:

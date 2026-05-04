@@ -3,6 +3,11 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+Middleware = Callable[
+    [Callable[[Any], Awaitable[Any]], str, Any, dict[str, Any]],
+    Any,
+]
+
 BeforeStageHook = (
     Callable[[str, Any], None | Awaitable[None]]
     | Callable[[str, Any, dict[str, Any]], None | Awaitable[None]]

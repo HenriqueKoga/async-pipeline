@@ -207,6 +207,28 @@ async def before_stage(stage_name: str, input_value: object) -> None:
     await audit_log(stage_name, input_value)
 ```
 
+## Middleware
+
+**Middlewares** wrap each stage’s execution in a **chain**: the first item in **`middlewares`** runs outermost (before the second, and so on, until the stage). Each middleware receives **`next`**, a callable that continues the chain with the **current** input value (you may pass a different value into **`next`** to change what the stage sees). Use **`middlewares=[...]`** on **`Pipeline`**.
+
+Unlike **hooks**, middlewares participate in the **data path**: they can transform inputs and outputs, catch or transform errors, and implement cross-cutting behavior (logging, tracing, policies) with full control over **`await next(value)`**.
+
+**Hooks** stay lightweight observers: they run **before** the middleware chain (**`before_stage`**) and **after** the full stage completes (**`after_stage`**), cannot replace the chain, and their own failures are ignored by design.
+
+```python
+import time
+
+from async_pipeline import Pipeline, Stage
+
+
+async def timing_middleware(next, stage_name, value, context):
+    start = time.perf_counter()
+    result = await next(value)
+    duration = time.perf_counter() - start
+    print(f"{stage_name} took {duration:.3f}s")
+    return result
+```
+
 ## Batch processing
 
 Run the same pipeline for many inputs in parallel, with a fixed concurrency limit and **stable output order** (aligned with the input sequence):
