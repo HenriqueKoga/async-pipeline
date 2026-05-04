@@ -229,6 +229,81 @@ async def timing_middleware(next, stage_name, value, context):
     return result
 ```
 
+## Built-in middlewares
+
+The library ships reusable middlewares under **`async_pipeline.middlewares`**. They compose with **`Pipeline.run`**, **`Pipeline.map`**, hooks, execution context, and optional OpenTelemetry.
+
+```python
+from async_pipeline.middlewares import (
+    LoggingMiddleware,
+    RetryMiddleware,
+    TimeoutMiddleware,
+    TimingMiddleware,
+)
+```
+
+**Order matters:** the **first** entry in **`middlewares=[...]`** is the **outermost** wrapper (runs first before the rest, closest to the caller). The **last** entry sits **just before** the stage. Example:
+
+```python
+middlewares=[
+    LoggingMiddleware(),
+    TimingMiddleware(),
+    RetryMiddleware(retries=3),
+    TimeoutMiddleware(timeout=5.0),
+]
+```
+
+### LoggingMiddleware
+
+```python
+pipeline = Pipeline(
+    [...],
+    middlewares=[LoggingMiddleware()],
+)
+```
+
+### TimingMiddleware
+
+Stores per-stage durations (seconds) under **`context["timings"][stage_name]`** as a **list** (multiple runs append).
+
+```python
+context = {}
+pipeline = Pipeline(
+    [...],
+    middlewares=[TimingMiddleware()],
+)
+result = await pipeline.run(1, context=context)
+print(context["timings"])
+```
+
+### RetryMiddleware
+
+Retries **`await next(...)`** (in addition to any **`Stage(..., retries=...)`** policy). Does not retry **`KeyboardInterrupt`** or **`asyncio.CancelledError`**.
+
+```python
+pipeline = Pipeline(
+    [...],
+    middlewares=[
+        RetryMiddleware(
+            retries=3,
+            delay=0.5,
+            backoff="exponential",
+        ),
+    ],
+)
+```
+
+### TimeoutMiddleware
+
+Wraps the next hop in **`asyncio.timeout`** (not **`wait_for`**). Compatible with **`Stage.timeout`**, which still applies inside the stage.
+
+```python
+pipeline = Pipeline(
+    [...],
+    middlewares=[TimeoutMiddleware(timeout=5.0)],
+)
+```
+
 ## OpenTelemetry
 
 Tracing is **optional**. The core package does **not** depend on OpenTelemetry; install the extra when you want spans around each stage:
