@@ -1,6 +1,6 @@
 [project]
 name = "async-pipeline"
-version = "0.7.0"
+version = "0.8.0"
 description = "Lightweight composition of async pipelines where each stage receives the previous stage's output."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -18,6 +18,11 @@ classifiers = [
 
 dependencies = []
 
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-api>=1.41.1",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -34,6 +39,7 @@ default-groups = ["dev"]
 [dependency-groups]
 dev = [
     "mypy>=1.15.0",
+    "opentelemetry-api>=1.41.1",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
     "ruff>=0.9.0",

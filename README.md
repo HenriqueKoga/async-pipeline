@@ -229,6 +229,41 @@ async def timing_middleware(next, stage_name, value, context):
     return result
 ```
 
+## OpenTelemetry
+
+Tracing is **optional**. The core package does **not** depend on OpenTelemetry; install the extra when you want spans around each stage:
+
+```bash
+uv add "async-pipeline[otel]"
+```
+
+Use **`OpenTelemetryMiddleware`** in **`middlewares=[...]`**. It creates **one span per stage**, named **`{span_prefix}.{stage_name}`** (defaults: `span_prefix="pipeline.stage"` → e.g. `pipeline.stage.fetch_api`).
+
+```python
+from async_pipeline import Pipeline, Stage
+from async_pipeline.telemetry import OpenTelemetryMiddleware
+
+pipeline = Pipeline(
+    [
+        Stage("add_one", add_one),
+    ],
+    middlewares=[OpenTelemetryMiddleware()],
+)
+```
+
+You can attach simple attributes from the execution context under **`trace_attributes`** (only **`str`**, **`int`**, **`float`**, **`bool`** values are copied onto the span; other types are ignored):
+
+```python
+result = await pipeline.run(
+    1,
+    context={
+        "trace_attributes": {
+            "request_id": "abc-123",
+        }
+    },
+)
+```
+
 ## Batch processing
 
 Run the same pipeline for many inputs in parallel, with a fixed concurrency limit and **stable output order** (aligned with the input sequence):
