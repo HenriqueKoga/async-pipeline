@@ -1,8 +1,10 @@
 """Timing middleware: record per-stage durations in the execution context."""
 
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any
+
+from async_pipeline._context import get_context_value, set_context_value
 
 
 class TimingMiddleware:
@@ -21,13 +23,14 @@ class TimingMiddleware:
 
     def _bucket_for_stage(
         self,
-        context: dict[str, Any],
+        context: object,
         stage_name: str,
     ) -> list[float]:
-        root = context.setdefault(self._context_key, {})
-        if not isinstance(root, dict):
+        root = get_context_value(context, self._context_key, None)
+        if not isinstance(root, MutableMapping):
             root = {}
-            context[self._context_key] = root
+            if not set_context_value(context, self._context_key, root):
+                return []
         raw = root.get(stage_name)
         bucket: list[float]
         if not isinstance(raw, list):
@@ -42,7 +45,7 @@ class TimingMiddleware:
         next_fn: Callable[[Any], Awaitable[Any]],
         stage_name: str,
         value: Any,
-        context: dict[str, Any],
+        context: object,
     ) -> Any:
         bucket = self._bucket_for_stage(context, stage_name)
         start = time.perf_counter()

@@ -3,6 +3,8 @@
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
+from async_pipeline._context import get_context_value
+
 try:
     from opentelemetry.trace import Status, StatusCode
 
@@ -15,8 +17,8 @@ except ImportError as exc:
 _SIMPLE_ATTR_TYPES = (str, int, float, bool)
 
 
-def _merge_trace_attributes(span: Any, context: dict[str, Any]) -> None:
-    raw = context.get("trace_attributes")
+def _merge_trace_attributes(span: Any, context: object) -> None:
+    raw = get_context_value(context, "trace_attributes", None)
     if not isinstance(raw, Mapping):
         return
     for key, val in raw.items():
@@ -52,7 +54,7 @@ class OpenTelemetryMiddleware:
         next_fn: Callable[[Any], Awaitable[Any]],
         stage_name: str,
         value: Any,
-        context: dict[str, Any],
+        context: object,
     ) -> Any:
         span_name = f"{self._span_prefix}.{stage_name}"
         with self._tracer.start_as_current_span(span_name) as span:

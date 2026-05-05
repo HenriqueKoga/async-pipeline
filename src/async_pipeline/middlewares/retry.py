@@ -52,7 +52,7 @@ class RetryMiddleware:
         next_fn: Callable[[Any], Awaitable[Any]],
         _stage_name: str,
         value: Any,
-        _context: dict[str, Any],
+        _context: object,
     ) -> Any:
         for attempt in range(self._retries + 1):
             if attempt > 0:

@@ -15,6 +15,7 @@ EXAMPLE_SCRIPTS = [
     "examples/hooks_context.py",
     "examples/middlewares.py",
     "examples/opentelemetry.py",
+    "examples/typed_context.py",
 ]
 
 

@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from inspect import isawaitable
-from typing import Any, Literal
+from typing import Literal
 
 from async_pipeline._hooks import accepts_arity
 from async_pipeline.errors import StageExecutionError
@@ -84,7 +84,7 @@ class Stage[T, U]:
         self,
         value: T,
         *,
-        context: dict[str, Any] | None = None,
+        context: object | None = None,
     ) -> U:
         """Invoke the handler with retry/timeout policy.
 
@@ -98,7 +98,7 @@ class Stage[T, U]:
         Raises:
             StageExecutionError: When every attempt raises ``Exception``.
         """
-        ctx: dict[str, Any] = {} if context is None else context
+        ctx: object = {} if context is None else context
         last_error: Exception | None = None
         for attempt in range(self.retries + 1):
             if attempt > 0:
@@ -112,7 +112,7 @@ class Stage[T, U]:
         assert last_error is not None  # loop runs at least once
         raise StageExecutionError(self.name, last_error) from last_error
 
-    async def _invoke_handler(self, value: T, context: dict[str, Any]) -> U:
+    async def _invoke_handler(self, value: T, context: object) -> U:
         """Run the handler once. Honors ``timeout`` for awaitable results only."""
         result = (
             self._handler(value, context)

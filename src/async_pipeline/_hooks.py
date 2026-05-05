@@ -1,7 +1,7 @@
 """Internal helpers: signature introspection and pipeline hook adapters.
 
 Stages may receive ``(value)`` or ``(value, context)``; hooks may use the
-legacy arity or include the execution-context dict as the last positional
+legacy arity or include the execution-context object as the last positional
 argument. Signature checks happen **once** when ``Stage`` / ``Pipeline`` is
 built; the adapters returned by :func:`normalize_before_hook` and
 :func:`normalize_after_hook` are always async with a fixed arity, so the hot
@@ -14,9 +14,9 @@ from typing import Any
 
 _POSITIONAL_KINDS = (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
 
-BeforeHookRunner = Callable[[str, Any, dict[str, Any]], Awaitable[None]]
+BeforeHookRunner = Callable[[str, Any, object], Awaitable[None]]
 AfterHookRunner = Callable[
-    [str, Any, Any | None, Exception | None, dict[str, Any]],
+    [str, Any, Any | None, Exception | None, object],
     Awaitable[None],
 ]
 
@@ -46,7 +46,7 @@ def normalize_before_hook(hook: Callable[..., Any]) -> BeforeHookRunner:
     """Adapt a sync/async before hook to the fixed (name, input, context) shape."""
     wants_context = accepts_arity(hook, 3)
 
-    async def runner(name: str, value: Any, ctx: dict[str, Any]) -> None:
+    async def runner(name: str, value: Any, ctx: object) -> None:
         result = hook(name, value, ctx) if wants_context else hook(name, value)
         if isawaitable(result):
             await result
@@ -63,7 +63,7 @@ def normalize_after_hook(hook: Callable[..., Any]) -> AfterHookRunner:
         value: Any,
         output: Any | None,
         error: Exception | None,
-        ctx: dict[str, Any],
+        ctx: object,
     ) -> None:
         result = (
             hook(name, value, output, error, ctx)

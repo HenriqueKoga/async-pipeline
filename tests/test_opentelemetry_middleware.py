@@ -105,6 +105,33 @@ async def test_trace_attributes_merged(
     assert "skip" not in keys
 
 
+async def test_trace_attributes_merged_from_object(
+    tracer_and_span: tuple[MagicMock, MagicMock],
+) -> None:
+    _tracer, span = tracer_and_span
+
+    class ContextObj:
+        def __init__(self) -> None:
+            self.trace_attributes = {
+                "request_id": "obj-123",
+                "tries": 2,
+                "invalid": {"x": 1},
+            }
+
+    async def ident(x: int) -> int:
+        return x
+
+    pipeline: Pipeline[int, int, ContextObj] = Pipeline(
+        [Stage("ident", ident)],
+        middlewares=[OpenTelemetryMiddleware()],
+    )
+    assert await pipeline.run(7, context=ContextObj()) == 7
+    span.set_attribute.assert_any_call("request_id", "obj-123")
+    span.set_attribute.assert_any_call("tries", 2)
+    keys = {c[0][0] for c in span.set_attribute.call_args_list}
+    assert "invalid" not in keys
+
+
 async def test_middleware_with_map(
     tracer_and_span: tuple[MagicMock, MagicMock],
 ) -> None:

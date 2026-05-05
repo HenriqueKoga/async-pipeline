@@ -35,7 +35,7 @@ class LoggingMiddleware:
         next_fn: Callable[[Any], Awaitable[Any]],
         stage_name: str,
         value: Any,
-        _context: dict[str, Any],
+        _context: object,
     ) -> Any:
         if self._include_value:
             self._logger.log(

@@ -1,5 +1,6 @@
 """Pipeline of sequential stages with optional execution context and lifecycle hooks."""
 
+import copy
 from collections.abc import Iterable, Sequence
 from typing import Any, Literal, cast, overload
 
@@ -12,10 +13,14 @@ from async_pipeline._hooks import (
 from async_pipeline._parallel_map import map_ordered
 from async_pipeline._pipeline_stage import run_stage_with_lifecycle
 from async_pipeline.stage import Stage
-from async_pipeline.types import AfterStageHook, BeforeStageHook, Middleware
+from async_pipeline.types import (
+    AfterStageHook,
+    BeforeStageHook,
+    Middleware,
+)
 
 
-class Pipeline[T, U]:
+class Pipeline[T, U, C: object = object]:
     """Sequential composition of :class:`Stage` callables.
 
     Each stage receives the previous stage's return value. Optional
@@ -62,14 +67,15 @@ class Pipeline[T, U]:
         self,
         initial_value: T,
         *,
-        context: dict[str, Any] | None = None,
+        context: C | None = None,
     ) -> U:
         """Execute all stages for a single input.
 
         Args:
             initial_value: Input to the first stage.
-            context: Shared mutable mapping for the whole run; if ``None``, an
-                empty dict is created and reused for every stage and hook.
+            context: Shared mutable context object for the whole run; if
+                ``None``, an empty dict is created and reused for every stage
+                and hook.
 
         Returns:
             The last stage's output.
@@ -78,7 +84,7 @@ class Pipeline[T, U]:
             StageExecutionError: When a stage handler fails after its own
                 retries/timeout policy (see :class:`Stage`).
         """
-        ctx: dict[str, Any] = {} if context is None else context
+        ctx: object = {} if context is None else context
         value: Any = initial_value
         for stage in self._stages:
             value = await run_stage_with_lifecycle(
@@ -91,13 +97,27 @@ class Pipeline[T, U]:
             )
         return cast(U, value)
 
+    def _copy_context(self, context: C | None) -> object:
+        """Create one shallow-copied context object per ``map`` item."""
+        if context is None:
+            return {}
+        if isinstance(context, dict):
+            return context.copy()
+        copy_method = getattr(context, "copy", None)
+        if callable(copy_method):
+            try:
+                return copy_method()
+            except TypeError:
+                pass
+        return copy.copy(context)
+
     @overload
     async def map(
         self,
         items: Iterable[T],
         concurrency: int = 5,
         *,
-        context: dict[str, Any] | None = None,
+        context: C | None = None,
         return_exceptions: Literal[False] = False,
     ) -> list[U]: ...
 
@@ -107,7 +127,7 @@ class Pipeline[T, U]:
         items: Iterable[T],
         concurrency: int = 5,
         *,
-        context: dict[str, Any] | None = None,
+        context: C | None = None,
         return_exceptions: Literal[True],
     ) -> list[U | Exception]: ...
 
@@ -116,18 +136,18 @@ class Pipeline[T, U]:
         items: Iterable[T],
         concurrency: int = 5,
         *,
-        context: dict[str, Any] | None = None,
+        context: C | None = None,
         return_exceptions: bool = False,
     ) -> list[U] | list[U | Exception]:
         """Run the same pipeline for each input with a concurrency cap.
 
         Results are aligned with ``items`` order. Each item gets a shallow copy
-        of ``context`` (when provided) so workers do not share the same dict.
+        of ``context`` (when provided) so workers do not share mutable state.
 
         Args:
             items: Iterable of inputs for the first stage.
             concurrency: Maximum concurrent ``run`` calls (minimum ``1``).
-            context: Optional template dict copied per item.
+            context: Optional template context shallow-copied per item.
             return_exceptions: If ``True``, store exceptions in the result list
                 instead of cancelling siblings via ``TaskGroup``.
 
@@ -137,13 +157,13 @@ class Pipeline[T, U]:
                 fails (often wrapping :class:`StageExecutionError`).
         """
 
-        async def execute(item: T, item_ctx: dict[str, Any]) -> U:
-            return await self.run(item, context=item_ctx)
+        async def execute(item: T, item_ctx: object) -> U:
+            return await self.run(item, context=cast(C, item_ctx))
 
         return await map_ordered(
             items,
             concurrency=concurrency,
             return_exceptions=return_exceptions,
-            template_context=context,
+            make_context=lambda: self._copy_context(context),
             execute=execute,
         )
