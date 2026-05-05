@@ -96,6 +96,37 @@ pipeline = Pipeline([Stage("add_one", add_one)])
 
 Pass `context=` to `Pipeline.run` or `Pipeline.map`. If omitted, `run` uses a new empty `dict` for that execution. Handlers may use `(value)` or `(value, context)` when the callable accepts at least two positional parameters (detected at `Stage` construction). Hooks may take an extra `context` argument using the same arity rules.
 
+### Typed context
+
+The context can be any mutable object, not only `dict`. Common choices:
+
+- `dict[str, Any]`
+- `TypedDict`
+- dataclass or simple mutable class with attributes
+
+```python
+from dataclasses import dataclass
+
+from async_pipeline import Pipeline, Stage
+
+
+@dataclass
+class Ctx:
+    request_id: str
+    count: int = 0
+
+
+async def handler(value: int, context: Ctx) -> int:
+    context.count += 1
+    return value + 1
+
+
+pipeline = Pipeline([Stage("handler", handler)])
+result = await pipeline.run(1, context=Ctx(request_id="abc"))
+```
+
+`Pipeline.map(..., context=...)` creates one **shallow copy** of the context per item, so workers do not share the same mutable instance.
+
 ## Batch processing with `Pipeline.map`
 
 ```python
@@ -259,6 +290,7 @@ Runnable scripts live under **`examples/`** (see **[examples/README.md](examples
 ```bash
 uv run python examples/basic_pipeline.py
 uv run python examples/batch_processing.py
+uv run python examples/typed_context.py
 ```
 
 ## Development

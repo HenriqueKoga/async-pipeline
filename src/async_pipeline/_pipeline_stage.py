@@ -11,7 +11,7 @@ from async_pipeline.types import Middleware
 
 def build_middleware_wrapped_runner(
     stage: Stage[Any, Any],
-    context: dict[str, Any],
+    context: object,
     middlewares: Sequence[Middleware],
 ) -> Callable[[Any], Awaitable[Any]]:
     """Return ``value -> ...`` with middlewares outer-first, ending in ``stage.run``."""
@@ -29,7 +29,7 @@ def _wrap_middleware_layer(
     next_handler: Callable[[Any], Awaitable[Any]],
     middleware: Middleware,
     stage_name: str,
-    context: dict[str, Any],
+    context: object,
 ) -> Callable[[Any], Awaitable[Any]]:
     async def wrapped(value: Any) -> Any:
         out = middleware(next_handler, stage_name, value, context)
@@ -54,7 +54,7 @@ async def run_stage_with_lifecycle(
     *,
     stage: Stage[Any, Any],
     value: Any,
-    context: dict[str, Any],
+    context: object,
     before_hook: BeforeHookRunner | None,
     after_hook: AfterHookRunner | None,
     middlewares: Sequence[Middleware],

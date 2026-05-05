@@ -29,7 +29,7 @@ class TimeoutMiddleware:
         next_fn: Callable[[Any], Awaitable[Any]],
         _stage_name: str,
         value: Any,
-        _context: dict[str, Any],
+        _context: object,
     ) -> Any:
         async with asyncio.timeout(self._timeout):
             return await next_fn(value)

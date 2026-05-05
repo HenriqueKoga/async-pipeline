@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable
-from typing import Any, cast
+from typing import cast
 
 
 async def map_ordered[T_item, T_result](
@@ -10,8 +10,8 @@ async def map_ordered[T_item, T_result](
     *,
     concurrency: int,
     return_exceptions: bool,
-    template_context: dict[str, Any] | None,
-    execute: Callable[[T_item, dict[str, Any]], Awaitable[T_result]],
+    make_context: Callable[[], object],
+    execute: Callable[[T_item, object], Awaitable[T_result]],
 ) -> list[T_result] | list[T_result | Exception]:
     """Run ``execute`` per item with bounded concurrency; preserve input order."""
     if concurrency < 1:
@@ -21,13 +21,9 @@ async def map_ordered[T_item, T_result](
         return []
     results: list[T_result | Exception | None] = [None] * len(seq)
     semaphore = asyncio.Semaphore(concurrency)
-    template: dict[str, Any] = (
-        {} if template_context is None else template_context
-    )
-
     async def worker(index: int, item: T_item) -> None:
         async with semaphore:
-            ctx = dict(template)
+            ctx = make_context()
             try:
                 results[index] = await execute(item, ctx)
             except Exception as exc:

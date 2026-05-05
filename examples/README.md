@@ -20,5 +20,6 @@ uv run python examples/batch_processing.py
 | [`hooks_context.py`](hooks_context.py) | Hooks + execution context |
 | [`middlewares.py`](middlewares.py) | Built-in middlewares |
 | [`opentelemetry.py`](opentelemetry.py) | Optional tracing (`async-pipeline[otel]`) |
+| [`typed_context.py`](typed_context.py) | TypedDict / dataclass context patterns |
 
 `opentelemetry.py` exits immediately with a short message if the optional dependency is not installed.
